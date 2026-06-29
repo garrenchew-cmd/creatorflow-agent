@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Manage and audit your digital video production pipelines with automated date recalculation and compliance checking.">
+  <title>CreatorFlow AI Dashboard</title>
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="main-header">
+      <div class="logo-area">
+        <span class="logo-icon">⚡</span>
+        <h1>CreatorFlow <span class="accent-text">AI</span></h1>
+      </div>
+      <div id="pipeline-health-bar" class="health-bar healthy">
+        <span class="health-pulse"></span>
+        <span class="health-text">Pipeline Health: 🟢 HEALTHY</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace-grid">
+      <!-- Left Panel: Video Pipelines -->
+      <section class="pipelines-panel">
+        <div class="panel-header">
+          <h2>Active Video Pipelines</h2>
+          <button id="refresh-btn" class="icon-btn" title="Refresh Pipeline Data">🔄 Refresh</button>
+        </div>
+        <div id="video-cards-container" class="cards-grid">
+          <!-- Video Cards will be injected here dynamically -->
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading your video pipelines...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Agent Chat Sidebar -->
+      <section class="chat-panel">
+        <div class="panel-header">
+          <h2>AI Scheduling Assistant</h2>
+        </div>
+        <div id="chat-messages" class="chat-history">
+          <div class="message system">
+            <div class="msg-bubble">
+              <p>👋 Hello! I am your <strong>CreatorFlow Pipeline Coordinator</strong>. I manage your dates and check contract and platform rules. Try shifting a date or asking for a pipeline status check!</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Suggestions/Quick Actions -->
+        <div class="quick-actions">
+          <button class="quick-prompt-btn">Show active video projects</button>
+          <button class="quick-prompt-btn">Delay filming for AI News Weekly to 2026-07-02</button>
+          <button class="quick-prompt-btn">Move Editing for 'The Future of VFX' to 2026-07-02</button>
+        </div>
+
+        <div class="chat-input-area">
+          <textarea id="chat-input" placeholder="Type a message to adjust timelines or run audits..." rows="1"></textarea>
+          <button id="send-btn" class="send-button">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+            </svg>
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
