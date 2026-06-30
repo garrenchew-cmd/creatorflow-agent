@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) throw new Error("Failed to fetch videos.");
       const videos = await response.json();
       renderVideos(videos);
+      renderAgenda(videos);
       updateOverallHealth(videos);
     } catch (err) {
       console.error(err);
@@ -26,6 +27,116 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `;
     }
+  }
+
+  // Helper to determine video card health status
+  function getVideoHealth(video) {
+    const milestones = video.milestones || [];
+    const publishMilestone = milestones.find(m => m.phase === "Publish");
+    const publishDate = publishMilestone ? publishMilestone.target_date : null;
+    const hardDeadline = video.hard_deadline;
+    
+    let isOverdue = false;
+    if (publishDate && hardDeadline) {
+      const pub = new Date(publishDate);
+      const hard = new Date(hardDeadline);
+      if (pub > hard) {
+        isOverdue = true;
+      }
+    }
+
+    let hasAIViolation = false;
+    if (video.ai_allowed === 0 && video.ai_assets && video.ai_assets.length > 0) {
+      const voiceover = video.ai_assets.find(a => a.model_used === "ElevenLabs" || a.type === "Voiceover");
+      if (voiceover) {
+        hasAIViolation = true;
+      }
+    }
+
+    if (isOverdue || hasAIViolation) return "critical";
+    if (video.ai_assets && video.ai_assets.length > 0) return "warning";
+    return "healthy";
+  }
+
+  // Render Upcoming Agenda (Next 3 Days) relative to the earliest incomplete milestone
+  function renderAgenda(videos) {
+    const agendaContainer = document.getElementById("agenda-container");
+    if (!agendaContainer) return;
+
+    // Collect all incomplete milestones
+    let incompleteMilestones = [];
+    videos.forEach(video => {
+      const milestones = video.milestones || [];
+      milestones.forEach(m => {
+        if (m.actual_date === null) {
+          incompleteMilestones.push({
+            videoTitle: video.title,
+            videoHealth: getVideoHealth(video),
+            phase: m.phase,
+            targetDate: m.target_date
+          });
+        }
+      });
+    });
+
+    if (incompleteMilestones.length === 0) {
+      agendaContainer.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted);">🎉 No upcoming tasks! All caught up.</p>`;
+      return;
+    }
+
+    // Find earliest target date among incomplete milestones to act as simulated today anchor
+    let dates = incompleteMilestones.map(m => new Date(m.targetDate + "T00:00:00"));
+    let minDate = new Date(Math.min(...dates));
+
+    // Threshold is anchor + 3 days (inclusive)
+    let thresholdDate = new Date(minDate);
+    thresholdDate.setDate(thresholdDate.getDate() + 3);
+
+    // Filter milestones within the next 3 days
+    let upcoming = incompleteMilestones.filter(m => {
+      const d = new Date(m.targetDate + "T00:00:00");
+      return d >= minDate && d <= thresholdDate;
+    });
+
+    // Sort by date ascending
+    upcoming.sort((a, b) => new Date(a.targetDate + "T00:00:00") - new Date(b.targetDate + "T00:00:00"));
+
+    if (upcoming.length === 0) {
+      agendaContainer.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted);">No tasks due in the next 3 days.</p>`;
+      return;
+    }
+
+    agendaContainer.innerHTML = "";
+
+    upcoming.forEach(item => {
+      const agendaItem = document.createElement("div");
+      
+      // Determine health class
+      let healthClass = "agenda-healthy";
+      if (item.videoHealth === "critical") healthClass = "agenda-critical";
+      else if (item.videoHealth === "warning") healthClass = "agenda-warning";
+
+      // Relative due date label math
+      const itemDate = new Date(item.targetDate + "T00:00:00");
+      const diffTime = itemDate - minDate;
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      
+      let relativeLabel = item.targetDate;
+      if (diffDays === 0) relativeLabel = "Today";
+      else if (diffDays === 1) relativeLabel = "Tomorrow";
+      else if (diffDays === 2) relativeLabel = "In 2 Days";
+      else if (diffDays === 3) relativeLabel = "In 3 Days";
+
+      agendaItem.className = `agenda-item ${healthClass}`;
+      agendaItem.innerHTML = `
+        <div class="agenda-info">
+          <span class="agenda-video" title="${item.videoTitle}">${item.videoTitle}</span>
+          <span class="agenda-phase">${item.phase}</span>
+        </div>
+        <span class="agenda-due">${relativeLabel}</span>
+      `;
+      agendaContainer.appendChild(agendaItem);
+    });
   }
 
   // Render video cards
@@ -47,8 +158,8 @@ document.addEventListener("DOMContentLoaded", () => {
       let isOverdue = false;
       let daysOverdue = 0;
       if (publishDate && hardDeadline) {
-        const pub = new Date(publishDate);
-        const hard = new Date(hardDeadline);
+        const pub = new Date(publishDate + "T00:00:00");
+        const hard = new Date(hardDeadline + "T00:00:00");
         if (pub > hard) {
           isOverdue = true;
           daysOverdue = Math.ceil((pub - hard) / (1000 * 60 * 60 * 24));
@@ -58,7 +169,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Check for AI / Sponsor violations
       let hasAIViolation = false;
       if (video.ai_allowed === 0 && video.ai_assets && video.ai_assets.length > 0) {
-        // SafeBank has ai_allowed = 0. Check if any ElevenLabs / AI voiceover is present.
         const voiceover = video.ai_assets.find(a => a.model_used === "ElevenLabs" || a.type === "Voiceover");
         if (voiceover) {
           hasAIViolation = true;
@@ -66,14 +176,16 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // Compute card health
+      const health = getVideoHealth(video);
       let healthClass = "on-track";
       let cardColorClass = "card-healthy";
       let healthText = "🟢 On Track";
-      if (isOverdue || hasAIViolation) {
+      
+      if (health === "critical") {
         healthClass = "conflict";
         cardColorClass = "card-critical";
         healthText = "🔴 Conflict";
-      } else if (video.ai_assets && video.ai_assets.length > 0) {
+      } else if (health === "warning") {
         healthClass = "warning-status";
         cardColorClass = "card-warning";
         healthText = "🟡 Warning";
@@ -182,21 +294,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let hasWarning = false;
 
     videos.forEach(video => {
-      const milestones = video.milestones || [];
-      const publishMilestone = milestones.find(m => m.phase === "Publish");
-      const publishDate = publishMilestone ? publishMilestone.target_date : null;
-      const hardDeadline = video.hard_deadline;
-      
-      const pub = publishDate ? new Date(publishDate) : null;
-      const hard = hardDeadline ? new Date(hardDeadline) : null;
-      
-      const isOverdue = pub && hard && pub > hard;
-      const hasAIViolation = video.ai_allowed === 0 && video.ai_assets && video.ai_assets.length > 0 &&
-                             video.ai_assets.some(a => a.model_used === "ElevenLabs" || a.type === "Voiceover");
-      
-      if (isOverdue || hasAIViolation) {
+      const health = getVideoHealth(video);
+      if (health === "critical") {
         hasConflict = true;
-      } else if (video.ai_assets && video.ai_assets.length > 0) {
+      } else if (health === "warning") {
         hasWarning = true;
       }
     });
@@ -223,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Append User Message
     appendMessage(text, "user");
     chatInput.value = "";
-    chatInput.style.height = "42px";
+    chatInput.style.height = "44px";
 
     // Show Typing Indicator
     const typingBubble = showTypingIndicator();

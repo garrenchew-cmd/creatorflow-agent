@@ -33,6 +33,15 @@
           <h2>Active Video Pipelines</h2>
           <button id="refresh-btn" class="icon-btn" title="Refresh Pipeline Data">🔄 Refresh</button>
         </div>
+        
+        <!-- Upcoming Agenda (Next 3 Days) -->
+        <div class="agenda-section">
+          <h3>📅 Upcoming Agenda (Next 3 Days)</h3>
+          <div id="agenda-container" class="agenda-grid">
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Calculating upcoming tasks...</p>
+          </div>
+        </div>
+
         <div id="video-cards-container" class="cards-grid">
           <!-- Video Cards will be injected here dynamically -->
           <div class="loading-state">
