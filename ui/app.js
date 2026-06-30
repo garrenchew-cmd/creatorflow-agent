@@ -1,4 +1,6 @@
 let session_id = "ui-session-" + Math.random().toString(36).substring(2, 9);
+let allVideos = [];
+let activeFilter = "all";
 
 document.addEventListener("DOMContentLoaded", () => {
   // Elements
@@ -9,16 +11,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const refreshBtn = document.getElementById("refresh-btn");
   const pipelineHealthBar = document.getElementById("pipeline-health-bar");
   const quickPromptBtns = document.querySelectorAll(".quick-prompt-btn");
+  
+  // Drawer Elements
+  const detailDrawer = document.getElementById("detail-drawer");
+  const drawerCloseBtn = document.getElementById("drawer-close-btn");
+  const drawerCloseOverlay = document.getElementById("drawer-close-overlay");
+  const drawerVideoTitle = document.getElementById("drawer-video-title");
+  const drawerBodyContent = document.getElementById("drawer-body-content");
+  
+  // Filter Chips
+  const filterChips = document.querySelectorAll(".filter-chip");
 
   // Fetch and render pipeline cards
   async function fetchPipelines() {
     try {
       const response = await fetch("/api/videos");
       if (!response.ok) throw new Error("Failed to fetch videos.");
-      const videos = await response.json();
-      renderVideos(videos);
-      renderAgenda(videos);
-      updateOverallHealth(videos);
+      allVideos = await response.json();
+      applyFilterAndRender();
+      renderAgenda(allVideos);
+      updateOverallHealth(allVideos);
     } catch (err) {
       console.error(err);
       videoCardsContainer.innerHTML = `
@@ -38,8 +50,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     let isOverdue = false;
     if (publishDate && hardDeadline) {
-      const pub = new Date(publishDate);
-      const hard = new Date(hardDeadline);
+      const pub = new Date(publishDate + "T00:00:00");
+      const hard = new Date(hardDeadline + "T00:00:00");
       if (pub > hard) {
         isOverdue = true;
       }
@@ -56,6 +68,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isOverdue || hasAIViolation) return "critical";
     if (video.ai_assets && video.ai_assets.length > 0) return "warning";
     return "healthy";
+  }
+
+  // Filter and render
+  function applyFilterAndRender() {
+    let filtered = allVideos;
+    if (activeFilter === "critical") {
+      filtered = allVideos.filter(v => getVideoHealth(v) === "critical");
+    } else if (activeFilter === "warning") {
+      filtered = allVideos.filter(v => getVideoHealth(v) === "warning");
+    } else if (activeFilter === "healthy") {
+      filtered = allVideos.filter(v => getVideoHealth(v) === "healthy");
+    }
+    renderVideos(filtered);
   }
 
   // Render Upcoming Agenda (Next 3 Days) relative to the earliest incomplete milestone
@@ -142,14 +167,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Render video cards
   function renderVideos(videos) {
     if (videos.length === 0) {
-      videoCardsContainer.innerHTML = `<p>No active videos found.</p>`;
+      videoCardsContainer.innerHTML = `
+        <div class="loading-state" style="padding: 2rem;">
+          <p style="color: var(--text-muted);">No projects match this status filter.</p>
+        </div>
+      `;
       return;
     }
 
     videoCardsContainer.innerHTML = "";
     
     videos.forEach(video => {
-      // Find Publish date and check deadline
       const milestones = video.milestones || [];
       const publishMilestone = milestones.find(m => m.phase === "Publish");
       const publishDate = publishMilestone ? publishMilestone.target_date : null;
@@ -194,6 +222,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // Card Element
       const card = document.createElement("div");
       card.className = `video-card ${cardColorClass}`;
+      card.style.cursor = "pointer";
+      card.title = "Click to inspect audit details";
+      
+      // Open drawer on click
+      card.addEventListener("click", () => openAuditDrawer(video));
       
       // Top header info
       const cardTop = `
@@ -208,7 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Timeline grid mapping milestones dynamically
       let nodesHtml = "";
-      milestones.forEach(m => {
+      milestones.forEach((m, idx) => {
         const phase = m.phase;
         const dateStr = m.target_date;
         const isDone = m.actual_date !== null;
@@ -218,7 +251,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isDone) nodeClass = "completed";
         else if (isCurrent) nodeClass = "current";
         
-        // Highlight Publish in danger if overdue
         if (phase === "Publish" && isOverdue) {
           nodeClass = "danger";
         }
@@ -235,10 +267,16 @@ document.addEventListener("DOMContentLoaded", () => {
           "Publish": "PUB"
         };
         const code = phaseMap[phase] || phase.substring(0, 3).toUpperCase();
+        
+        // Custom rich tooltip text
+        let tooltipText = `${phase}: ${dateStr}`;
+        if (isDone) tooltipText += " (Completed)";
+        else if (isCurrent) tooltipText += " (Active Stage)";
+        if (m.dependency_offset > 0) tooltipText += ` (Offset: +${m.dependency_offset}d)`;
 
         nodesHtml += `
           <div class="timeline-step-node ${nodeClass}">
-            <div class="step-dot" title="${phase}: ${dateStr}"></div>
+            <div class="step-dot" title="${tooltipText}"></div>
             <div class="step-code">${code}</div>
           </div>
         `;
@@ -288,6 +326,163 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Open the Audit Detail Drawer
+  function openAuditDrawer(video) {
+    const health = getVideoHealth(video);
+    drawerVideoTitle.textContent = video.title;
+    
+    // Compute details
+    const milestones = video.milestones || [];
+    const publishMilestone = milestones.find(m => m.phase === "Publish");
+    const publishDate = publishMilestone ? publishMilestone.target_date : "N/A";
+    
+    let verdictClass = "green-verdict";
+    let verdictText = "🟢 GREEN: On Track & Compliant";
+    if (health === "critical") {
+      verdictClass = "red-verdict";
+      verdictText = "🔴 RED: Critical Conflict/Violation";
+    } else if (health === "warning") {
+      verdictClass = "yellow-verdict";
+      verdictText = "🟡 YELLOW: Platform Warnings";
+    }
+
+    // Build Milestones Table HTML
+    let milestoneRows = "";
+    milestones.forEach(m => {
+      milestoneRows += `
+        <tr>
+          <td><strong>${m.phase}</strong></td>
+          <td>${m.target_date}</td>
+          <td>${m.actual_date ? `🟢 ${m.actual_date}` : `<span style="color:var(--text-dark);">Incomplete</span>`}</td>
+        </tr>
+      `;
+    });
+
+    // Build AI Assets Table HTML
+    let aiAssetsHtml = "";
+    if (video.ai_assets && video.ai_assets.length > 0) {
+      video.ai_assets.forEach(asset => {
+        const hasHash = asset.c2pa_hash && asset.c2pa_hash !== "";
+        const hashIcon = hasHash ? "🟢 Verified C2PA" : "🔴 Missing Provenance";
+        
+        aiAssetsHtml += `
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;">
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700; margin-bottom:0.25rem;">
+              <span>🤖 ${asset.model_used} (${asset.type})</span>
+              <span style="font-size:0.75rem; color: ${hasHash ? 'var(--green)' : 'var(--red)'};">${hashIcon}</span>
+            </div>
+            <p style="font-size:0.75rem; color:var(--text-muted);">${asset.description || 'No description provided.'}</p>
+            ${asset.c2pa_hash ? `<code style="font-size:0.65rem; background:rgba(0,0,0,0.3); padding:0.1rem 0.3rem; border-radius:4px; display:block; margin-top:0.25rem; overflow:hidden; text-overflow:ellipsis;">Hash: ${asset.c2pa_hash}</code>` : ''}
+          </div>
+        `;
+      });
+    } else {
+      aiAssetsHtml = `<p style="font-size:0.8rem; color:var(--text-muted);">No generative AI assets logged for this video.</p>`;
+    }
+
+    // Check for specific warnings
+    let warningNotes = "";
+    if (health === "critical") {
+      // Find hard deadline breach
+      if (publishDate !== "N/A" && video.hard_deadline) {
+        const pub = new Date(publishDate + "T00:00:00");
+        const hard = new Date(video.hard_deadline + "T00:00:00");
+        if (pub > hard) {
+          const diff = Math.ceil((pub - hard) / (1000 * 60 * 60 * 24));
+          warningNotes += `<li style="color: var(--red);">🚨 <strong>Hard Deadline Slipped:</strong> Upload date (${publishDate}) is ${diff} days past deadline (${video.hard_deadline}).</li>`;
+        }
+      }
+      
+      // Find AI Sponsor violation
+      if (video.ai_allowed === 0 && video.ai_assets && video.ai_assets.length > 0) {
+        const voiceover = video.ai_assets.find(a => a.model_used === "ElevenLabs" || a.type === "Voiceover");
+        if (voiceover) {
+          warningNotes += `<li style="color: var(--red);">🚨 <strong>AI Contract Breach:</strong> Sponsor <strong>${video.sponsor_name}</strong> bans AI voiceovers, but an ElevenLabs track was used.</li>`;
+        }
+      }
+    }
+    
+    // Synthetic media tag check
+    let disclosureAlert = "";
+    if (video.ai_assets && video.ai_assets.length > 0) {
+      const needsLabel = video.ai_assets.some(a => a.model_used === "ElevenLabs" || a.model_used === "Sora");
+      if (needsLabel) {
+        disclosureAlert = `
+          <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); color: #fbbf24; padding: 0.75rem; border-radius: 8px; font-size: 0.75rem; font-weight:600;">
+            ⚠️ ALTERED CONTENT LABEL REQUIRED: This project uses realistic synthetic media (ElevenLabs/Sora). You must toggle "Altered or Synthetic Content" when uploading to YouTube/TikTok.
+          </div>
+        `;
+      }
+    }
+
+    // Render Drawer Content HTML
+    drawerBodyContent.innerHTML = `
+      <!-- Verdict Banner -->
+      <div class="drawer-verdict-banner ${verdictClass}">
+        ${verdictText}
+      </div>
+      
+      ${disclosureAlert}
+
+      <!-- Metadata Section -->
+      <div class="drawer-section">
+        <h3>Project Information</h3>
+        <div class="drawer-meta-grid">
+          <span class="drawer-meta-label">Sponsor:</span>
+          <span class="drawer-meta-val">${video.sponsor_name || 'None'}</span>
+          
+          <span class="drawer-meta-label">Hard Deadline:</span>
+          <span class="drawer-meta-val" style="color:${health === 'critical' ? 'var(--red)' : '#fff'};">${video.hard_deadline || 'None'}</span>
+          
+          <span class="drawer-meta-label">Review Window:</span>
+          <span class="drawer-meta-val">${video.review_window_days ? `${video.review_window_days} Days Required` : 'None'}</span>
+        </div>
+      </div>
+
+      <!-- Actionable Violations list -->
+      ${warningNotes ? `
+      <div class="drawer-section">
+        <h3 style="color: var(--red);">Critical Violations</h3>
+        <ul style="padding-left:1rem; display:flex; flex-direction:column; gap:0.5rem; font-size:0.8rem;">
+          ${warningNotes}
+        </ul>
+      </div>
+      ` : ''}
+
+      <!-- Milestones List -->
+      <div class="drawer-section">
+        <h3>Milestone Timeline</h3>
+        <table style="width:100%;">
+          <thead>
+            <tr>
+              <th>Milestone</th>
+              <th>Target Date</th>
+              <th>Actual Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${milestoneRows}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Generative AI Log -->
+      <div class="drawer-section">
+        <h3>AI Asset Audit Log</h3>
+        ${aiAssetsHtml}
+      </div>
+    `;
+
+    detailDrawer.classList.add("open");
+  }
+
+  // Close Drawer
+  function closeDrawer() {
+    detailDrawer.classList.remove("open");
+  }
+  drawerCloseBtn.addEventListener("click", closeDrawer);
+  drawerCloseOverlay.addEventListener("click", closeDrawer);
+
   // Update Overall Header Health Bar
   function updateOverallHealth(videos) {
     let hasConflict = false;
@@ -316,6 +511,16 @@ document.addEventListener("DOMContentLoaded", () => {
       textNode.innerHTML = "Pipeline Health: 🟢 HEALTHY";
     }
   }
+
+  // Filter Chips event binding
+  filterChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      filterChips.forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      activeFilter = chip.getAttribute("data-filter");
+      applyFilterAndRender();
+    });
+  });
 
   // Send a message
   async function sendMessage(text) {

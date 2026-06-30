@@ -42,6 +42,14 @@
           </div>
         </div>
 
+        <!-- Quick Status Filters -->
+        <div class="filter-bar">
+          <button class="filter-chip active" data-filter="all">All Projects</button>
+          <button class="filter-chip" data-filter="critical">Conflicts 🔴</button>
+          <button class="filter-chip" data-filter="warning">Warnings 🟡</button>
+          <button class="filter-chip" data-filter="healthy">On Track 🟢</button>
+        </div>
+
         <div id="video-cards-container" class="cards-grid">
           <!-- Video Cards will be injected here dynamically -->
           <div class="loading-state">
@@ -82,6 +90,21 @@
       </section>
     </main>
   </div>
+
+  <!-- Audit Details Drawer -->
+  <div id="detail-drawer" class="drawer">
+    <div class="drawer-overlay" id="drawer-close-overlay"></div>
+    <div class="drawer-content">
+      <div class="drawer-header">
+        <h2 id="drawer-video-title">Project Audit & Insights</h2>
+        <button id="drawer-close-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="drawer-body" id="drawer-body-content">
+        <!-- Audit info dynamically injected here -->
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
