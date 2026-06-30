@@ -67,18 +67,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Compute card health
       let healthClass = "on-track";
+      let cardColorClass = "card-healthy";
       let healthText = "🟢 On Track";
       if (isOverdue || hasAIViolation) {
         healthClass = "conflict";
-        healthText = "🔴 Critical Conflict";
+        cardColorClass = "card-critical";
+        healthText = "🔴 Conflict";
       } else if (video.ai_assets && video.ai_assets.length > 0) {
         healthClass = "warning-status";
-        healthText = "🟡 Compliance Warning";
+        cardColorClass = "card-warning";
+        healthText = "🟡 Warning";
       }
 
       // Card Element
       const card = document.createElement("div");
-      card.className = "video-card";
+      card.className = `video-card ${cardColorClass}`;
       
       // Top header info
       const cardTop = `
@@ -91,68 +94,78 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `;
 
-      // Timeline grid
+      // Timeline grid mapping milestones dynamically
       let nodesHtml = "";
-      const standardPhases = ["Scripting", "Filming", "Editing", "Thumbnail", "Final QC", "Publish"];
-      
-      standardPhases.forEach((phase, idx) => {
-        const dbMilestone = milestones.find(m => m.phase === phase);
-        const dateStr = dbMilestone ? dbMilestone.target_date : "TBD";
-        const isDone = dbMilestone && dbMilestone.actual_date !== null;
+      milestones.forEach(m => {
+        const phase = m.phase;
+        const dateStr = m.target_date;
+        const isDone = m.actual_date !== null;
         const isCurrent = video.status === phase;
         
         let nodeClass = "";
         if (isDone) nodeClass = "completed";
         else if (isCurrent) nodeClass = "current";
         
-        // Highlight Publish in red if overdue
+        // Highlight Publish in danger if overdue
         if (phase === "Publish" && isOverdue) {
           nodeClass = "danger";
         }
 
+        // Map phase names to short 3-letter codes
+        const phaseMap = {
+          "Scripting": "SCR",
+          "Filming": "FIL",
+          "Editing": "EDT",
+          "Rough Cut": "RGH",
+          "Sponsor Review": "REV",
+          "Thumbnail": "TMB",
+          "Final QC": "FQC",
+          "Publish": "PUB"
+        };
+        const code = phaseMap[phase] || phase.substring(0, 3).toUpperCase();
+
         nodesHtml += `
-          <div class="timeline-node ${nodeClass}">
-            <div class="node-dot" title="${phase}"></div>
-            <div class="node-label">${phase}</div>
-            <div class="node-date">${dateStr}</div>
+          <div class="timeline-step-node ${nodeClass}">
+            <div class="step-dot" title="${phase}: ${dateStr}"></div>
+            <div class="step-code">${code}</div>
           </div>
         `;
       });
 
       const timelineTrack = `
         <div class="timeline-track-container">
-          <div class="timeline-line"></div>
-          <div class="timeline-nodes">
+          <div class="timeline-step-row">
+            <div class="timeline-step-line"></div>
             ${nodesHtml}
           </div>
         </div>
       `;
 
       // Assets and Deadline
-      let deadlineText = `Hard Deadline: <strong>${hardDeadline || "None"}</strong>`;
+      let deadlineText = `Due: ${hardDeadline || "None"}`;
       let deadlineClass = "";
       if (isOverdue) {
-        deadlineText = `🚨 Hard Deadline: <strong>${hardDeadline}</strong> (Overdue by ${daysOverdue} days!)`;
+        deadlineText = `🚨 Slip: ${daysOverdue}d (Due ${hardDeadline})`;
         deadlineClass = "danger-deadline";
       } else if (hardDeadline) {
-        deadlineText = `Hard Deadline: <strong>${hardDeadline}</strong>`;
+        deadlineText = `Due: ${hardDeadline}`;
       }
 
       let assetChips = "";
       if (video.ai_assets && video.ai_assets.length > 0) {
         video.ai_assets.forEach(a => {
-          assetChips += `<span class="asset-tag ai" title="${a.description || ''}">${a.model_used} (${a.type})</span>`;
+          assetChips += `<span class="asset-pill ai-pill" title="${a.description || ''}">${a.model_used}</span>`;
         });
       } else {
-        assetChips = `<span class="asset-tag">No AI Assets</span>`;
+        assetChips = `<span class="asset-pill">No AI Assets</span>`;
       }
 
       const cardBottom = `
         <div class="card-bottom">
-          <div class="deadline-info ${deadlineClass}">
+          <div class="deadline-row ${deadlineClass}">
             ${deadlineText}
           </div>
-          <div class="assets-summary">
+          <div class="asset-pill-row">
             ${assetChips}
           </div>
         </div>
@@ -246,10 +259,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // Append a chat bubble
   function appendMessage(text, sender) {
     const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${sender}`;
+    
+    // Auto-detect prompt injection block message to style as system warning
+    let isSecurityAlert = text.includes("Security Alert") || text.includes("injection attempt blocked");
+    let bubbleSender = sender;
+    if (isSecurityAlert) {
+      bubbleSender = "system";
+    }
+
+    messageDiv.className = `message ${bubbleSender}`;
     
     let bubbleContent = "";
-    if (sender === "agent") {
+    if (sender === "agent" && !isSecurityAlert) {
       bubbleContent = parseMarkdown(text);
     } else {
       bubbleContent = `<p>${escapeHTML(text)}</p>`;
@@ -363,7 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Textarea auto-grow
   chatInput.addEventListener("input", function() {
-    this.style.height = "42px";
+    this.style.height = "44px";
     this.style.height = (this.scrollHeight > 120 ? 120 : this.scrollHeight) + "px";
   });
 
