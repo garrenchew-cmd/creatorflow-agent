@@ -12,11 +12,14 @@ logger = logging.getLogger("creatorflow.security")
 INJECTION_TRIGGERS = [
     "ignore previous instructions",
     "ignore all guidelines",
+    "ignore guidelines",
     "ignore the rules",
+    "ignore rules",
     "bypass compliance",
     "bypass database",
     "system override",
     "override guidelines",
+    "override rules",
     "ignore sponsor rules",
     "ignore script guidelines",
 ]
