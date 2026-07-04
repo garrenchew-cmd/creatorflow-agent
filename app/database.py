@@ -104,7 +104,7 @@ def init_db(db_path=DEFAULT_DB_PATH):
     """)
 
     # 3. Insert Milestones (Scripting -> Filming -> Editing/Rough Cut -> Review -> Thumbnail -> QC -> Publish)
-    
+
     # Video 1: "10 Editing Tips" (TechBrand, hard deadline 2026-07-31)
     # Target Publish: 2026-07-27 (Healthy)
     cursor.execute("""
