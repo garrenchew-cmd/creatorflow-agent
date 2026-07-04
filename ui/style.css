@@ -490,31 +490,34 @@ body::after {
 .chat-history {
   flex: 1;
   padding: 1.5rem 2rem;
-  overflow-y: auto;
+  overflow-y: scroll; /* Forces the vertical scrollbar track to be permanently visible */
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  min-height: 0; /* Constraints flex container height to trigger scrolling */
+  min-height: 0;
+  scrollbar-width: thin; /* Firefox support */
+  scrollbar-color: rgba(139, 92, 246, 0.5) rgba(0, 0, 0, 0.15); /* Firefox support */
 }
 
 /* Chat History Custom Scrollbar */
 .chat-history::-webkit-scrollbar {
-  width: 6px;
+  width: 8px; /* Slightly wider for better visibility */
 }
 
 .chat-history::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 9999px;
 }
 
 .chat-history::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.25);
+  background: rgba(139, 92, 246, 0.5); /* Much more visible purple shade */
   border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .chat-history::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
+  background: rgba(139, 92, 246, 0.8);
+  box-shadow: 0 0 10px var(--accent);
 }
 
 /* Message Bubble Styling */
