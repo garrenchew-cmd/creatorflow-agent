@@ -141,6 +141,17 @@ def chat_with_agent(req: ChatRequest):
                     if part.text:
                         full_text += part.text
 
+        # Retrieve active session from service to check security flags in context state
+        session = session_service.get_session_sync(
+            app_name="creatorflow-dashboard",
+            user_id="dashboard_user",
+            session_id=adk_session_id,
+        )
+        if session and session.state.get("security_alert"):
+            # Clear the flag for the next turn
+            session.state["security_alert"] = False
+            full_text = "Security Alert: Prompt injection attempt blocked. The operation was terminated to protect the pipeline."
+
         # If agent yielded empty/no text (e.g. tools completed silently), fallback message
         if not full_text:
             full_text = "I have updated the schedule database and completed the requested checks."
