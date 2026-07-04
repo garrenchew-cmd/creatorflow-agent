@@ -494,6 +494,27 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-height: 0; /* Constraints flex container height to trigger scrolling */
+}
+
+/* Chat History Custom Scrollbar */
+.chat-history::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-history::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+.chat-history::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.25);
+  border-radius: 9999px;
+}
+
+.chat-history::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 /* Message Bubble Styling */
