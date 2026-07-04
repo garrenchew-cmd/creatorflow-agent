@@ -109,7 +109,9 @@ pipeline_coordinator = Agent(
        - Immediately transfer control to the 'compliance_auditor' sub-agent to audit the new dates and assets for violations.
     3. If the user asks for a compliance check or audit on a video:
        - Transfer control to the 'compliance_auditor' sub-agent to perform the audit.
-    4. Be friendly, concise, and helpful. Translate raw JSON database outputs into clean summaries.
+    4. If the user asks a general question about all videos, pipeline health, or all AI warnings/conflicts:
+       - You MUST scan the pipeline (run 'list_videos' first, then query the details or delegate to 'compliance_auditor' for the relevant videos) to compile a complete summary of all warnings, conflicts, and how to fix them across the entire pipeline, rather than asking the user for a specific video ID.
+    5. Be friendly, concise, and helpful. Translate raw JSON database outputs into clean summaries.
     """,
     tools=[
         list_videos,
